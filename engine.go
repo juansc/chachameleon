@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/google/uuid"
@@ -118,8 +119,10 @@ func (e *engine) StartNewRound(player string, roomID RoomID) (int, error) {
 }
 
 func (e *engine) GetRoundInfo(player string, roomID RoomID, round int) (Round, error) {
+	fmt.Println("Getting round info")
 	e.Lock()
 	defer e.Unlock()
+	fmt.Println("got the lock")
 
 	if playerRoomID, ok := e.PlayerRooms[player]; !ok || roomID != playerRoomID {
 		return Round{}, ErrPlayerNotInRoom
@@ -129,9 +132,6 @@ func (e *engine) GetRoundInfo(player string, roomID RoomID, round int) (Round, e
 	if !ok {
 		return Round{}, ErrRoomDoesNotExist
 	}
-	room.Lock()
-	defer room.Unlock()
-
 	if room.RoundNumber != round {
 		return Round{}, ErrRoundDoesNotExist
 	}

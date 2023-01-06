@@ -15,12 +15,32 @@ func main() {
 			"message": "pong",
 		})
 	})
-	r.POST("/room", theGame.createRoom)
+	r.POST("/room", CORSMiddleware(), theGame.createRoom)
 	r.GET("/room/:room_id/", theGame.getRoomInfo)
 	r.POST("/room/:room_id/", theGame.joinRoom)
 	r.POST("/room/:room_id/round", theGame.startNewRound)
 	r.GET("/room/:room_id/round/:round_number/", theGame.getRoundInfo)
+	//	r.Use(CORSMiddleware())
 	r.Run() // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")
+}
+
+func CORSMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		c.Header("Access-Control-Allow-Origin", "http://localhost:3000")
+		c.Header("Access-Control-Allow-Credentials", "true")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Header("Access-Control-expose-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Header("Access-Control-Allow-Methods", "POST,HEAD,PATCH,OPTIONS,GET,PUT")
+		c.Header("My-Test-Header", "test")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	}
 }
 
 type game struct {
@@ -113,10 +133,6 @@ func (g *game) getRoomInfo(c *gin.Context) {
 		return
 	}
 
-	if req.RequestType != "room_info" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request type"})
-		return
-	}
 	roomID := c.Param("room_id")
 	if roomID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "room_id is required"})
@@ -153,10 +169,6 @@ func (g *game) startNewRound(c *gin.Context) {
 		return
 	}
 
-	if req.RequestType != "start_new_round" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request type"})
-		return
-	}
 	roomID := c.Param("room_id")
 	if roomID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "room_id is required"})
@@ -178,10 +190,6 @@ func (g *game) getRoundInfo(c *gin.Context) {
 		return
 	}
 
-	if req.RequestType != "get_round_info" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request type"})
-		return
-	}
 	roomID := c.Param("room_id")
 	if roomID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "room_id is required"})
