@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -27,7 +28,7 @@ func (e *engine) CreateRoom(player string) (RoomID, error) {
 		// Player is already in a room
 		return "", ErrPlayerAlreadyInRoom
 	}
-	id := uuid.New().String()[:4]
+	id := strings.ToUpper(uuid.New().String()[:4])
 	e.Lock()
 	defer e.Unlock()
 	// Create a new room.
