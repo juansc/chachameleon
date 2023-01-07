@@ -20,7 +20,7 @@ func main() {
 	r.POST("/room/:room_id/", theGame.joinRoom)
 	r.POST("/room/:room_id/round", theGame.startNewRound)
 	r.GET("/room/:room_id/round/:round_number/", theGame.getRoundInfo)
-	//	r.Use(CORSMiddleware())
+	r.Use(CORSMiddleware())
 	r.Run() // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")
 }
 
@@ -29,8 +29,8 @@ func CORSMiddleware() gin.HandlerFunc {
 
 		c.Header("Access-Control-Allow-Origin", "http://localhost:3000")
 		c.Header("Access-Control-Allow-Credentials", "true")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
-		c.Header("Access-Control-expose-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, access-control-allow-methods, access-control-allow-origin")
+		c.Header("Access-Control-expose-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, access-control-allow-methods, access-control-allow-origin")
 		c.Header("Access-Control-Allow-Methods", "POST,HEAD,PATCH,OPTIONS,GET,PUT")
 		c.Header("My-Test-Header", "test")
 
