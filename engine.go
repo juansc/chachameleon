@@ -23,6 +23,14 @@ func NewEngine() *engine {
 	}
 }
 
+func (e *engine) Reset() {
+	e.Lock()
+	defer e.Unlock()
+	e.Players = []string{}
+	e.PlayerRooms = map[string]RoomID{}
+	e.Rooms = map[RoomID]*Room{}
+}
+
 func (e *engine) CreateRoom(player string) (RoomID, error) {
 	if _, ok := e.PlayerRooms[player]; ok {
 		// Player is already in a room

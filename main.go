@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -16,10 +17,11 @@ func main() {
 		})
 	})
 	r.POST("/room", CORSMiddleware(), theGame.createRoom)
-	r.GET("/room/:room_id/", theGame.getRoomInfo)
-	r.POST("/room/:room_id/", theGame.joinRoom)
+	r.GET("/room/:room_id/", CORSMiddleware(), theGame.getRoomInfo)
+	r.POST("/room/:room_id/", CORSMiddleware(), theGame.joinRoom)
 	r.POST("/room/:room_id/round", theGame.startNewRound)
 	r.GET("/room/:room_id/round/:round_number/", theGame.getRoundInfo)
+	r.GET("/reset", theGame.reset)
 	r.Use(CORSMiddleware())
 	r.Run() // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")
 }
@@ -29,10 +31,9 @@ func CORSMiddleware() gin.HandlerFunc {
 
 		c.Header("Access-Control-Allow-Origin", "http://localhost:3000")
 		c.Header("Access-Control-Allow-Credentials", "true")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, access-control-allow-methods, access-control-allow-origin")
-		c.Header("Access-Control-expose-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, access-control-allow-methods, access-control-allow-origin")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, access-control-allow-methods, access-control-allow-origin, x-player")
+		c.Header("Access-Control-expose-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, access-control-allow-methods, access-control-allow-origin, x-player")
 		c.Header("Access-Control-Allow-Methods", "POST,HEAD,PATCH,OPTIONS,GET,PUT")
-		c.Header("My-Test-Header", "test")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
@@ -93,6 +94,10 @@ func (g *game) createRoom(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	if req.Player == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "player is required"})
+		return
+	}
 
 	roomID, err := g.engine.CreateRoom(req.Player)
 	if err != nil {
@@ -108,11 +113,8 @@ func (g *game) joinRoom(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	fmt.Println("player", req.Player, "requested to join room ", c.Param("room_id"))
 
-	if req.RequestType != "join_room" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request type"})
-		return
-	}
 	roomID := c.Param("room_id")
 	if roomID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "room_id is required"})
@@ -127,11 +129,7 @@ func (g *game) joinRoom(c *gin.Context) {
 }
 
 func (g *game) getRoomInfo(c *gin.Context) {
-	var req request
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+	reqPlayer := c.Request.Header.Get("X-Player")
 
 	roomID := c.Param("room_id")
 	if roomID == "" {
@@ -139,7 +137,7 @@ func (g *game) getRoomInfo(c *gin.Context) {
 		return
 	}
 
-	roomInfo, err := g.engine.GetRoomInfo(req.Player, RoomID(roomID))
+	roomInfo, err := g.engine.GetRoomInfo(reqPlayer, RoomID(roomID))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -153,7 +151,7 @@ func (g *game) getRoomInfo(c *gin.Context) {
 	}
 
 	resp := roomInfoResponse{
-		IsLeader:     roomInfo.RoomLeader == req.Player,
+		IsLeader:     roomInfo.RoomLeader == reqPlayer,
 		Players:      roomInfo.Players,
 		CurrentRound: roomInfo.RoundNumber,
 		IsLocked:     roomInfo.IsReady,
@@ -163,11 +161,7 @@ func (g *game) getRoomInfo(c *gin.Context) {
 }
 
 func (g *game) startNewRound(c *gin.Context) {
-	var req request
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+	reqPlayer := c.Request.Header.Get("X-Player")
 
 	roomID := c.Param("room_id")
 	if roomID == "" {
@@ -175,7 +169,7 @@ func (g *game) startNewRound(c *gin.Context) {
 		return
 	}
 
-	roundNumber, err := g.engine.StartNewRound(req.Player, RoomID(roomID))
+	roundNumber, err := g.engine.StartNewRound(reqPlayer, RoomID(roomID))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -222,4 +216,8 @@ func (g *game) getRoundInfo(c *gin.Context) {
 		resp.SecretWord = roundInfo.SecretWord
 	}
 	c.JSON(http.StatusOK, &resp)
+}
+
+func (g *game) reset(_ *gin.Context) {
+	g.engine.Reset()
 }
