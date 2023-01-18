@@ -89,7 +89,7 @@ func NewRoom(id string, leader string) Room {
 			RoomLeader:  leader,
 			IsReady:     false,
 			RoundNumber: 0,
-			LastUpdated: time.Now(),
+			LastUpdated: time.Now().Round(time.Second),
 		},
 	}
 }

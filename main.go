@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -31,8 +32,8 @@ func CORSMiddleware() gin.HandlerFunc {
 
 		c.Header("Access-Control-Allow-Origin", "http://localhost:3000")
 		c.Header("Access-Control-Allow-Credentials", "true")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, access-control-allow-methods, access-control-allow-origin, x-player")
-		c.Header("Access-Control-expose-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, access-control-allow-methods, access-control-allow-origin, x-player")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, access-control-allow-methods, access-control-allow-origin, x-player, x-last-update")
+		c.Header("Access-Control-expose-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, access-control-allow-methods, access-control-allow-origin, x-player, x-last-update")
 		c.Header("Access-Control-Allow-Methods", "POST,HEAD,PATCH,OPTIONS,GET,PUT")
 
 		if c.Request.Method == "OPTIONS" {
@@ -128,8 +129,20 @@ func (g *game) joinRoom(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "joined room"})
 }
 
+// getLastUpdated returns the time of the last update that the requester has seen.
+// If the person has never seen a request before then it returns the zero time.
+func getLastUpdateTimestamp(c *gin.Context) time.Time {
+	timestamp, err := time.Parse(time.RFC3339, c.GetHeader("X-Last-Update"))
+	if err != nil {
+		return time.Time{}
+	}
+	fmt.Println("last update", timestamp)
+	return timestamp
+}
+
 func (g *game) getRoomInfo(c *gin.Context) {
 	reqPlayer := c.Request.Header.Get("X-Player")
+	lastUpdateTs := getLastUpdateTimestamp(c)
 
 	roomID := c.Param("room_id")
 	if roomID == "" {
@@ -137,10 +150,22 @@ func (g *game) getRoomInfo(c *gin.Context) {
 		return
 	}
 
+	loopStart := time.Now()
+
 	roomInfo, err := g.engine.GetRoomInfo(reqPlayer, RoomID(roomID))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	for {
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		fmt.Println("room info last update", roomInfo.LastUpdated, "request update", lastUpdateTs)
+		if lastUpdateTs.IsZero() || roomInfo.LastUpdated.After(lastUpdateTs) || time.Since(loopStart) > 30*time.Second {
+			fmt.Println("last update is zero?", lastUpdateTs.IsZero(), "room info was update", roomInfo.LastUpdated.After(lastUpdateTs), "was waiting for more than 30 sec", time.Since(loopStart) > 30*time.Second)
+			break
+		}
+		fmt.Println("Going to sleep")
+		time.Sleep(1 * time.Second)
+		roomInfo, err = g.engine.GetRoomInfo(reqPlayer, RoomID(roomID))
 	}
 
 	type roomInfoResponse struct {
@@ -148,6 +173,7 @@ func (g *game) getRoomInfo(c *gin.Context) {
 		Players      []string `json:"players"`
 		CurrentRound int      `json:"current_round"`
 		IsLocked     bool     `json:"is_locked"`
+		LastUpdate   string   `json:"last_update"`
 	}
 
 	resp := roomInfoResponse{
@@ -155,6 +181,7 @@ func (g *game) getRoomInfo(c *gin.Context) {
 		Players:      roomInfo.Players,
 		CurrentRound: roomInfo.RoundNumber,
 		IsLocked:     roomInfo.IsReady,
+		LastUpdate:   roomInfo.LastUpdated.Format(time.RFC3339),
 	}
 
 	c.JSON(http.StatusOK, &resp)
